@@ -3,6 +3,39 @@ name: dedsiddd-dotnet-coding
 description: 用于在 DedsiDDD + .NET 项目中，按统一约定生成 DDD/CQRS 常见代码骨架（领域模型、DTO、EF Core 映射、仓储、Commands、Queries、Controller）。
 ---
 
+## 范围与目标
+
+本 Skill 用于：
+- 在 DedsiDDD + .NET（Clean Architecture + CQRS）项目中，按既有约定生成可编译、可落地的代码骨架与模板。
+- 将“文件应该放在哪一层/哪个项目/如何组织文件”一次说明清楚，并提供可直接复用的参考模板。
+- 强制对齐关键工程约束：依赖方向、文件聚合原则（Command/Handler 同文件等）、CancellationToken 全链路透传、分页/导出约定。
+
+不在范围内：
+- 在缺少上下文时编造不存在的模块、基类、包名或项目特有约定（以仓库为准）。
+- 生成与现有解决方案分层冲突的强绑定实现（例如把 Infrastructure 逻辑塞进 Domain）。
+- 在未确认业务不变式/字段约束的情况下“拍脑袋”补齐领域规则。
+
+冲突优先级（从高到低）：
+1. 当前仓库已有实现与约定（现有代码/模块/命名/路由/返回结构）
+2. 本 SKILL 的通用约定
+3. 一般 DDD/CQRS 的行业习惯
+
+## 输入与输出
+
+### 生成/改造前必须明确的信息（不明确就先问）
+- 解决方案/模块边界：实体属于哪个模块（目录/命名空间前缀）、HttpApi 路由风格（是否 action route）。
+- 聚合根：实体英文单数名（`[Entity]`）与复数名（`[Entities]`），主键类型（默认 `string`/ULID）。
+- 字段清单：字段名、类型、是否必填、长度/精度、默认值、是否需要枚举、是否需要值对象。
+- 关系与集合：一对多/多对多/聚合内集合的唯一性约束、更新策略（增量 vs Clear+Add）。
+- 数据库映射：表名、Schema、索引、唯一性约束、是否软删（若项目已有）。
+- API 契约：需要哪些端点（Get/Paged/Create/Update/Delete/Export），以及导出列（通常与 PagedRowDto 对齐）。
+
+### 我会输出什么（交付标准）
+- 明确的文件清单与落点（Domain/Infrastructure/UseCase/HttpApi）。
+- 每个文件的代码模板（或在现有文件上给出最小变更补丁）。
+- 所有公开入口（Controller/Query/Command）都包含 `CancellationToken` 并向下透传到 EF Core/仓储。
+- 分页查询遵循固定顺序：筛选 → Count → 排序 →（非导出则分页）→ 投影 → ToList。
+
 ## 项目结构（Clean Architecture CQRS）
 
 > 本节用于快速对齐“代码应该放在哪一层/哪个项目”。具体版本与文件名以实际仓库为准（例如 `global.json`、`Directory.Build.props`、`Directory.Build.targets`）。
@@ -21,7 +54,7 @@ description: 用于在 DedsiDDD + .NET 项目中，按统一约定生成 DDD/CQR
     - 核心领域对象、常量、领域模块。
     - 外部包：`Dedsi.CleanArchitecture.Domain`（`$(DedsiFrameworkVersion)`）。
 - 基础设施（`src/[Project].Infrastructure`）
-    - EF Core 持久化与集成；包含 `DbContext` 与模型构建扩展。
+    - EF Core 持久化与集成；包含 `DbContext` 与实体映射配置（`EntityConfigurations`）。
     - 依赖：Domain。
     - 外部包：`Dedsi.CleanArchitecture.Infrastructure`（`$(DedsiFrameworkVersion)`）。
 - 用例（UseCase，`src/[Project].UseCase`）
@@ -76,8 +109,9 @@ description: 用于在 DedsiDDD + .NET 项目中，按统一约定生成 DDD/CQR
      │  ├─ Repositories/
      │  │  └─ [Entity]Repository.cs
      │  └─ EntityFrameworkCore/
-     │     ├─ [Project]DbContext.cs
-     │     └─ [Project]DbContextModelCreatingExtensions.cs
+    │     ├─ [Project]DbContext.cs
+    │     └─ EntityConfigurations/
+    │        └─ [Entity]Configuration.cs
      ├─ [Project].UseCase/
      │  ├─ [Project].UseCase.csproj
      │  ├─ [Project]UseCaseModule.cs
@@ -114,15 +148,52 @@ description: 用于在 DedsiDDD + .NET 项目中，按统一约定生成 DDD/CQR
 - Controller 基类/约定：`src/[Project].HttpApi/[Project]Controller.cs`（若存在）或同项目内现有 Controller 示例
 - 生成文件命名空间：优先遵循项目现有模块/目录结构；若无既定约定再按“模块名 + 领域模型英文复数形式”统一
 
+### 存放位置速查
+> 目标：把“应该建哪些文件、分别放在哪”一次说清，减少来回翻找。
+
+| 生成块 | 放置项目 | 目录（建议） | 典型文件 |
+| --- | --- | --- | --- |
+| 领域模型 | `src/[Project].Domain` | `src/[Project].Domain/[Entities]/` | `[Entity].cs` |
+| DTO（含分页 DTO） | `src/[Project].UseCase` | `src/[Project].UseCase/[Entities]/Dtos/` | `[Entity]Dto.cs` / `[Entity]CreateUpdateDto.cs` / `[Entity]PagedDtos.cs` |
+| EF Core DbContext | `src/[Project].Infrastructure` | `src/[Project].Infrastructure/EntityFrameworkCore/` | `[Project]DbContext.cs` |
+| EF Core 映射 | `src/[Project].Infrastructure` | `src/[Project].Infrastructure/EntityFrameworkCore/EntityConfigurations/` | `[Entity]Configuration.cs` |
+| 仓储（接口+实现同文件） | `src/[Project].Infrastructure` | `src/[Project].Infrastructure/Repositories/` | `[Entity]Repository.cs` |
+| Commands（命令+处理器同文件） | `src/[Project].UseCase` | `src/[Project].UseCase/[Entities]/CommandHandlers/` | `Create[Entity]Command.cs` / `Update[Entity]Command.cs` / `Delete[Entity]Command.cs` |
+| Queries（接口+实现同文件） | `src/[Project].UseCase` | `src/[Project].UseCase/[Entities]/Queries/` | `[Entity]Query.cs` / `[Entity]PagedQuery.cs` |
+| Controller | `src/[Project].HttpApi` | （随项目现有 Controller 组织） | `[Entity]Controller.cs` |
+| Controller Requests（推荐） | `src/[Project].HttpApi` | `src/[Project].HttpApi/Requests/` | `[Entity]Requests.cs` |
+
+### 最小交付清单
+> 如果你只想快速跑通 CRUD + 分页 + 导出：按此清单创建文件即可。
+
+1. Domain：新增 `[Entity].cs`（聚合根/实体/值对象按需）
+2. Infrastructure：
+    - `[Project]DbContext.cs` 增加 `DbSet<[Entity]>`（若项目是每聚合根一个 DbSet）
+    - 新增 `[Entity]Configuration.cs`（表名/Schema/主键/索引/长度/关系）
+    - 新增 `[Entity]Repository.cs`（接口+实现）
+3. UseCase：
+    - `[Entity]Dto.cs` / `[Entity]CreateUpdateDto.cs`
+    - `Create[Entity]Command.cs` / `Update[Entity]Command.cs` / `Delete[Entity]Command.cs`
+    - `[Entity]Query.cs` + `[Entity]PagedQuery.cs`
+4. HttpApi：
+    - `[Entity]Controller.cs`
+    - （推荐）`[Entity]Requests.cs`（把 Body 契约从 DTO 中隔离出来，便于演进）
+
 ## 通用约定（全局规则）
 - **命名占位符**：`[Entity]` / `[Project]` / `[DbContext]` 代表按实际业务替换。
 - **文件聚合原则**：
     - Command 与 Handler 必须同文件。
     - Query 接口与实现必须同文件。
     - Repository 接口与实现必须同文件。
+- **Enum 约束（强制）**：所有 `enum` 必须显式赋值，且第一个业务值从 `1` 开始（禁止使用默认的 `0` 值）。
 - **CancellationToken**：所有公开 API/Query 方法必须显式接收 `CancellationToken`，并向下透传到 EF Core/仓储。
 - **XML 注释**：对外接口（Controller、Query 接口/实现、DTO）遵循项目现有风格补齐注释；实现类可用 `/// <inheritdoc />`。
 - **Controller 路由约定提示**：若项目使用 `[Route(".../[controller]/[action]")]`，则 `UpdateAsync` 与 `DeleteAsync` 都可以使用 `[HttpPost("{id}")]`，因为 action 名不同不会冲突。
+- **常用 using（生成后更容易一次编译通过）**：
+    - Domain：`Volo.Abp`（Check/异常）、`Volo.Abp.Domain.Entities`（AggregateRoot）、`Dedsi.Ddd.Domain.Auditing.Contracts`（审计接口）
+    - Infrastructure（EF Core）：`Microsoft.EntityFrameworkCore`、`Microsoft.EntityFrameworkCore.Metadata.Builders`、`Volo.Abp.Data`、`Volo.Abp.EntityFrameworkCore`
+    - UseCase（Query）：`Volo.Abp.Linq`（WhereIf/PageBy 扩展）、`Microsoft.EntityFrameworkCore`（CountAsync/ToListAsync）
+    - HttpApi：`Microsoft.AspNetCore.Mvc`、`Dedsi.Ddd.CQRS.Mediators`
 
 ## 推荐工作流
 1. **澄清边界与不变式**：确认聚合根 `[Entity]` 的职责、必填字段、状态机/校验规则、集合唯一性规则。
@@ -136,18 +207,40 @@ description: 用于在 DedsiDDD + .NET 项目中，按统一约定生成 DDD/CQR
     - `DbSet` 注册到 `[DbContext]`。
     - 为实体添加 `EntityTypeConfiguration`（表名/Schema/主键/索引/长度/必填/关系）。
 5. **仓储（Repository）**：创建 `I[Entity]Repository` + 实现（同文件），注入 `IDbContextProvider<[DbContext]>`。
-6. **写侧（Commands）**：Create/Update/Delete 命令与处理器同文件；更新时调用领域方法；集合更新遵循“先清空再添加”的一致策略（或按业务写增量更新，但需统一）。
+6. **写侧（Commands）**：
+    - Create/Update/Delete 命令与处理器同文件，并拆分为三个独立文件（每文件仅 1 个 Command + 1 个 Handler）。
+    - Create：生成新 ULID -> 创建领域对象 -> `InsertAsync(..., cancellationToken)` -> 返回 `string id`。
+    - Update：`GetAsync(id, cancellationToken)` -> 调用领域方法变更（禁止外部直接 set）-> `UpdateAsync(..., cancellationToken)` -> 返回 `bool`。
+    - 集合更新：按约定“先 Clear 再 Add”（或按业务增量更新，但必须全项目一致）。
+    - `CancellationToken`：Handler 内所有仓储/EF 调用必须透传。
 7. **读侧（Queries）**：
-    - 单条查询：通过仓储取领域对象并手动映射到 DTO。
-    - 分页查询：`DedsiEfCoreQuery<[DbContext]>` + `WhereIf` + `CountAsync` + `PageBy` + `Select` 投影。
-8. **Controller 暴露接口**：只做编排与透传（入参校验/调用 Query/Mediator/导出），不写业务规则。
+    - 单条查询：优先注入仓储，通过 `GetAsync(a => a.Id == id, includeDetails: true, cancellationToken)` 获取领域对象并手动映射为 `Dto`（`id` 必须用于谓词）。
+    - 分页查询：优先注入 `I[Project]DbContext`（或业务 DbContext 接口）拿 `DbSet<T>`，并按固定顺序组织：
+        - `AsNoTracking()`（只读列表默认不跟踪）
+        - `WhereIf(...)` 应用筛选
+        - `CountAsync(cancellationToken)` 计算总数
+        - `OrderBy...` 排序
+        - `if (!input.IsExport) PageBy(...)`（导出不分页）
+        - `Select` 投影到 RowDto -> `ToListAsync(cancellationToken)`
+8. **HttpApi（Controller + Requests）**：只做编排与透传（路由/鉴权/入参/调用 Query/Mediator/导出），不写业务规则。
+    - Request 模型：为 Create/Update 提供独立的 `Create[Entity]Request` / `Update[Entity]Request`，Body 内部字段使用 `[Entity]CreateUpdateDto`（写入契约），避免把展示 `Dto` 当作写入契约。
+    - Update 端点：`[HttpPost("{id}")]` + `[FromRoute] string id` + `[FromBody] Update[Entity]Request request`，并返回 `Task<bool>`（对齐 `Update[Entity]Command : DedsiCommand<bool>`）。
+    - 导出端点：设置 `input.IsExport = true` 复用分页查询筛选条件，使用 MiniExcel 输出。
+    - `CancellationToken`：从 `HttpContext.RequestAborted` 贯穿到 Query/Mediator。
 9. **最后做一次一致性检查**：
-    - 命名/路由/返回类型是否符合项目现有 Controller 模式。
-    - `CancellationToken` 是否全链路透传。
-    - Update/Query 示例中的 `id` 是否确实用于谓词。
+    - 命名/路由/返回类型是否与 Commands/Queries 的返回保持一致（尤其 Update 返回 `bool`）。
+    - Create/Update 的 Request Body 类型是否使用 `CreateUpdateDto`（而非展示 `Dto`）。
+    - `CancellationToken` 是否全链路透传到 EF/仓储。
+    - Update/Query 示例中的 `id` 是否确实用于谓词/命令入参，避免“入参未使用”。
 
 ## 目录
+- [范围与目标](#范围与目标)
+- [输入与输出](#输入与输出)
 - [项目结构（Clean Architecture CQRS）](#项目结构clean-architecture-cqrs)
+- [存放位置速查](#存放位置速查)
+- [最小交付清单](#最小交付清单)
+- [通用约定（全局规则）](#通用约定全局规则)
+- [推荐工作流](#推荐工作流)
 - [生成领域模型](#生成领域模型)
 - [生成 DTO](#生成-dto)
 - [配置数据库](#配置数据库)
@@ -155,6 +248,7 @@ description: 用于在 DedsiDDD + .NET 项目中，按统一约定生成 DDD/CQR
 - [生成命令 (Commands)](#生成命令-commands)
 - [生成查询 (Queries)](#生成查询-queries)
 - [生成控制器 (Controller)](#生成控制器-controller)
+- [常见坑与验收清单](#常见坑与验收清单)
 
 ---
 
@@ -162,6 +256,13 @@ description: 用于在 DedsiDDD + .NET 项目中，按统一约定生成 DDD/CQR
 
 ### 何时使用
 当需要在 Dedsi DDD 项目中创建新的领域实体或聚合根时。
+
+### 存放位置（与项目结构一致）
+- 项目：`src/[Project].Domain`
+- 目录：`src/[Project].Domain/[Entities]/`
+- 文件：`src/[Project].Domain/[Entities]/[Entity].cs`
+- 命名空间：建议与目录一致（例如 `namespace [Project].Domain.[Entities];`）
+- 说明：领域模型只放领域层；不要把 DTO/EF Core 映射/查询投影等放进 Domain。
 
 ### 规则
 - 聚合根 **必须** 继承 `AggregateRoot<string>` 并实现 `IDedsiCreationAuditedObject`。
@@ -178,7 +279,7 @@ description: 用于在 DedsiDDD + .NET 项目中，按统一约定生成 DDD/CQR
     - 入参校验：
       - 字符串：`Check.NotNullOrWhiteSpace`；有长度限制则再用 `Check.Length`（或对应约束）。
       - 引用类型：`Check.NotNull`。
-      - 枚举：仅允许合法值（例如 `Enum.IsDefined` / 约束集合）。
+            - 枚举：仅允许合法值（例如 `Enum.IsDefined` / 约束集合）；并遵循“所有 enum 显式赋值且从 1 开始”的全局约束。
     - **幂等**：新旧值相同（或语义等同）直接返回。
     - **维护不变式**：不满足业务不变式时抛 `BusinessException`，避免进入非法状态。
     - `Check.*` 的 `paramName` 建议使用 `nameof(参数)`。
@@ -295,6 +396,16 @@ public class Risk : AggregateRoot<string>, IDedsiCreationAuditedObject
 ### 何时使用
 用于创建 API 响应（`Dto`）和 API 请求（`CreateUpdateDto`）的 DTO。
 
+### 存放位置（与项目结构一致）
+- 项目：`src/[Project].UseCase`
+- 目录：`src/[Project].UseCase/[Entities]/Dtos/`
+- 文件建议：
+    - `src/[Project].UseCase/[Entities]/Dtos/[Entity]Dto.cs`
+    - `src/[Project].UseCase/[Entities]/Dtos/[Entity]CreateUpdateDto.cs`
+    - 分页 DTO：`src/[Project].UseCase/[Entities]/Dtos/[Entity]PagedDtos.cs`（或按项目既有拆分方式）
+- 命名空间：建议 `namespace [Project].UseCase.[Entities].Dtos;`
+- 说明：DTO 属于用例层（Application/UseCase），不要放到 Domain。
+
 ### 规则
 - **展示 DTO**：
   - 命名：`[EntityName]Dto`。
@@ -305,6 +416,9 @@ public class Risk : AggregateRoot<string>, IDedsiCreationAuditedObject
   - 如有必要，包含验证属性。
   - 使用 `public get; set;`。
 - **字段注释（强制）**：DTO 的每个字段/属性都必须有 XML 注释（`/// <summary>...</summary>`）。
+- **边界（推荐）**：DTO 尽量不要直接暴露领域对象类型（例如不要把 `RiskReviewer` 直接作为返回 DTO 字段类型）。
+    - 推荐做法：为集合/复杂对象单独定义 `XxxDto`/`XxxCreateUpdateDto`，并在 Query/Command 里做映射。
+    - 例外：若该类型本质是“稳定的对外契约值对象”（字段与含义长期稳定、不会牵动领域规则），且项目已有先例，则允许直接复用。
 
 ### 模板参考
 ```csharp
@@ -388,6 +502,16 @@ public class RiskCreateUpdateDto
 ### 何时使用
 当需要在 `DbContext` 中注册新实体并配置其 EF Core 映射时。
 
+### 存放位置（与项目结构一致）
+- 项目：`src/[Project].Infrastructure`
+- DbContext：
+    - `src/[Project].Infrastructure/EntityFrameworkCore/[Project]DbContext.cs`
+- 实体映射：`src/[Project].Infrastructure/EntityFrameworkCore/EntityConfigurations/[Entity]Configuration.cs`
+- 命名空间：
+    - DbContext：通常 `namespace [Project].Infrastructure.EntityFrameworkCore;`
+    - 配置类：通常 `namespace [Project].Infrastructure.EntityFrameworkCore.EntityConfigurations;`
+- 说明：EF Core 映射与 DbContext 仅放 Infrastructure；Domain 不引用 EF Core。
+
 ### 规则
 
 #### DbSet
@@ -446,6 +570,7 @@ public class ProjectNameCQRSDbContext(DbContextOptions<ProjectNameCQRSDbContext>
         }
 
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(ProjectNameCQRSDbContext).Assembly);
+
         base.OnModelCreating(modelBuilder);
     }
 }
@@ -454,6 +579,7 @@ public class ProjectNameCQRSDbContext(DbContextOptions<ProjectNameCQRSDbContext>
 ```csharp
 using DedsiDemo.Students;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
 namespace DedsiDemo.EntityFrameworkCore.EntityConfigurations;
 
@@ -474,38 +600,51 @@ internal class DeliverRecordConfiguration : IEntityTypeConfiguration<DeliverReco
 ### 何时使用
 为聚合根创建数据访问层（仓储）。
 
+### 存放位置（与项目结构一致）
+- 项目：`src/[Project].Infrastructure`
+- 目录：`src/[Project].Infrastructure/Repositories/`
+- 文件：`src/[Project].Infrastructure/Repositories/[Entity]Repository.cs`
+- 命名空间：建议 `namespace [Project].Infrastructure.Repositories;`（或按仓库现有约定）
+- 说明：本仓库约定“接口与实现同文件”，因此不要把接口拆到 Domain；UseCase 通过依赖 Infrastructure 使用仓储。
+
 ### 规则
 - **接口**：
   - 命名：`I[AggregateRoot]Repository`（例如 `IRiskRepository`）。
-  - 继承：`IDedsiCqrsRepository<AggregateRoot, KeyType>`。
-  - 命名空间：`Dedsi.Ddd.Domain.Repositories`。
+    - 继承：`IDedsiCqrsRepository<AggregateRoot, KeyType>`（类型来自 `Dedsi.Ddd.Domain.Repositories`）。
+    - 命名空间：按项目现有约定（通常与存放位置一致，例如 `namespace [Project].Infrastructure.Repositories;`）。
 - **实现**：
   - 命名：`[AggregateRoot]Repository`（例如 `RiskRepository`）。
-  - 继承：`DedsiCqrsEfCoreRepository<DbContext, AggregateRoot, KeyType>`。
-  - 命名空间：`Dedsi.EntityFrameworkCore.Repositories`。
+        - 继承：`DedsiDddEfCoreRepository<DbContext, AggregateRoot, KeyType>`
+            - 说明：`DedsiDddEfCoreRepository` 为**框架基类**，命名空间为 `Dedsi.EntityFrameworkCore.Repositories`。
+        - 命名空间：按项目现有约定（通常与存放位置一致，例如 `namespace [Project].Infrastructure.Repositories;`）。
   - 实现接口。
 - **文件结构**：接口和实现 **必须** 在同一个文件中。
 - **构造函数**：注入 `IDbContextProvider<DbContext>`。
+- **依赖方向**：UseCase 只依赖仓储接口（通过 DI 注入）；仓储实现位于 Infrastructure 并依赖 EF Core DbContext。
 
 ### 模板参考
+
+#### 模板 A：直接使用框架基类（`DedsiDddEfCoreRepository`）
 ```csharp
 using Dedsi.Ddd.Domain.Repositories;
 using Dedsi.EntityFrameworkCore.Repositories;
+using DigitalEmployeeDdd.Domain.Teachers;
+using DigitalEmployeeDdd.EntityFrameworkCore;
 using Volo.Abp.EntityFrameworkCore;
 
-namespace SafetyEnvProtection.Repositories;
+namespace DigitalEmployeeDdd.Infrastructure.Repositories;
 
 /// <summary>
-/// 字典数据仓储
+/// 老师仓储
 /// </summary>
-public interface IDictionaryDataRepository : IDedsiCqrsRepository<DictionaryData, string>;
+public interface ITeacherRepository : IDedsiCqrsRepository<Teacher, string>;
 
 /// <summary>
-/// 字典数据仓储
+/// 老师仓储
 /// </summary>
 /// <param name="dbContextProvider"></param>
-public class DictionaryDataRepository(IDbContextProvider<SafetyEnvProtectionDbContext> dbContextProvider)
-    : DedsiCqrsEfCoreRepository<SafetyEnvProtectionDbContext, DictionaryData, string>(dbContextProvider), IDictionaryDataRepository;
+public class TeacherRepository(IDbContextProvider<DigitalEmployeeDddDbContext> dbContextProvider)
+    : DedsiDddEfCoreRepository<DigitalEmployeeDddDbContext, Teacher, string>(dbContextProvider), ITeacherRepository;
 ```
 
 ---
@@ -516,7 +655,18 @@ public class DictionaryDataRepository(IDbContextProvider<SafetyEnvProtectionDbCo
 实现 CQRS 写操作（Write side）：创建、更新、删除。
 
 ### 规则
-- 命令和处理器 **必须** 在同一个文件中。
+- Create/Update/Delete 三个命令 **必须** 拆分为三个独立的 `.cs` 文件。
+- 每个命令与其处理器 **必须** 在同一个文件中（即：一个 `.cs` 文件只承载一个 Command + 对应 Handler）。
+
+### 存放位置（与项目结构一致）
+- 项目：`src/[Project].UseCase`
+- 目录：`src/[Project].UseCase/[Entities]/CommandHandlers/`
+- 文件建议（按命令拆分）：
+    - `src/[Project].UseCase/[Entities]/CommandHandlers/Create[Entity]Command.cs`
+    - `src/[Project].UseCase/[Entities]/CommandHandlers/Update[Entity]Command.cs`
+    - `src/[Project].UseCase/[Entities]/CommandHandlers/Delete[Entity]Command.cs`
+- 命名空间：建议 `namespace [Project].UseCase.[Entities].CommandHandlers;`
+- 说明：Commands/Handlers 属于用例层写侧；不要放到 HttpApi（Controller 只负责编排与透传）。
 
 #### 创建命令 (Create Command)
 - **命令**：record `Create[Entity]Command(CreateUpdateDto Dto)` : `DedsiCommand<string>`。
@@ -536,16 +686,24 @@ public class DictionaryDataRepository(IDbContextProvider<SafetyEnvProtectionDbCo
 
 ### 模板参考
 ```csharp
+// Create[Entity]Command.cs
 using Dedsi.Ddd.CQRS.CommandHandlers;
 using Dedsi.Ddd.CQRS.Commands;
 using Dedsi.Ddd.CQRS.Mediators;
 using Volo.Abp;
 
-// Create
+/// <summary>
+/// 创建风险命令
+/// </summary>
+/// <param name="RiskDto">风险创建/更新 DTO</param>
 public record CreateRiskCommand(RiskCreateUpdateDto RiskDto): DedsiCommand<string>;
 
+/// <summary>
+/// 创建风险命令处理器
+/// </summary>
 public class CreateRiskCommandHandler(IRiskRepository riskRepository) : DedsiCommandHandler<CreateRiskCommand, string>
 {
+    /// <inheritdoc />
     public override async Task<string> Handle(CreateRiskCommand command, CancellationToken cancellationToken)
     {
         var domainId = Ulid.NewUlid().ToString();
@@ -554,12 +712,28 @@ public class CreateRiskCommandHandler(IRiskRepository riskRepository) : DedsiCom
         return domainId;
     }
 }
+```
 
-// Update
+```csharp
+// Update[Entity]Command.cs
+using Dedsi.Ddd.CQRS.CommandHandlers;
+using Dedsi.Ddd.CQRS.Commands;
+using Dedsi.Ddd.CQRS.Mediators;
+using Volo.Abp;
+
+/// <summary>
+/// 更新风险命令
+/// </summary>
+/// <param name="Id">风险 Id</param>
+/// <param name="RiskDto">风险创建/更新 DTO</param>
 public record UpdateRiskCommand(string Id, RiskCreateUpdateDto RiskDto) : DedsiCommand<bool>;
 
+/// <summary>
+/// 更新风险命令处理器
+/// </summary>
 public class UpdateRiskCommandHandler(IRiskRepository riskRepository) : DedsiCommandHandler<UpdateRiskCommand, bool>
 {
+    /// <inheritdoc />
     public override async Task<bool> Handle(UpdateRiskCommand command, CancellationToken cancellationToken)
     {
         var domain = await riskRepository.GetAsync(command.Id, cancellationToken: cancellationToken);
@@ -575,12 +749,27 @@ public class UpdateRiskCommandHandler(IRiskRepository riskRepository) : DedsiCom
         return true;
     }
 }
+```
 
-// Delete
+```csharp
+// Delete[Entity]Command.cs
+using Dedsi.Ddd.CQRS.CommandHandlers;
+using Dedsi.Ddd.CQRS.Commands;
+using Dedsi.Ddd.CQRS.Mediators;
+using Volo.Abp;
+
+/// <summary>
+/// 删除风险命令
+/// </summary>
+/// <param name="Id">风险 Id</param>
 public record DeleteRiskCommand(string Id) : DedsiCommand<bool>;
 
+/// <summary>
+/// 删除风险命令处理器
+/// </summary>
 public class DeleteRiskCommandHandler(IRiskRepository riskRepository) : DedsiCommandHandler<DeleteRiskCommand, bool>
 {
+    /// <inheritdoc />
     public override async Task<bool> Handle(DeleteRiskCommand command, CancellationToken cancellationToken)
     {
         await riskRepository.DeleteAsync(a => a.Id == command.Id, true, cancellationToken);
@@ -597,16 +786,38 @@ public class DeleteRiskCommandHandler(IRiskRepository riskRepository) : DedsiCom
 实现 CQRS 读操作（Read side）：单条查询与分页查询。
 
 ### 规则
-- **接口与实现**：每种查询类型必须在同一个文件中。
-- **分页查询与 EF Core 查询基类**：使用 `DedsiEfCoreQuery<[DbContext]>`，通过 `GetDbContextAsync()` 获取 DbContext。
-- **注释（强制）**：所有 Query（接口 / class / 方法）都必须有 XML 注释；实现类与其实现方法统一使用 `/// <inheritdoc />`。
-- **CancellationToken（强制）**：所有公开查询方法必须显式接收 `CancellationToken cancellationToken`，并传递给 EF Core/仓储调用。
+- **接口与实现同文件**：每种 Query（单个查询 / 分页查询等）必须将“接口 + 实现 + 方法”放在同一个 `.cs` 文件中。
+- **文件拆分（推荐）**：单个查询与分页查询建议分为两个文件（对应模板 A/B），避免一个文件混放多种 Query。
+- **数据访问方式（强制）**：
+    - **优先（与模板一致）**：通过注入“DbContext 接口”（例如 `I[Project]DbContext` / 业务 `ISafetyEnvProtectionDbContext`）获取 `DbSet<T>` 来查询。
+    - **约束**：禁止在 Query 中直接注入具体 `DbContext` 实现类；用接口承载 `DbSet<T>`，更利于解耦与测试。
+- **分页查询行为约定（强制）**：
+    - 必须 `AsNoTracking()`（分页列表默认只读）。
+    - 必须先应用筛选（`WhereIf` 等）再 `CountAsync(cancellationToken)` 获取总数。
+    - 必须先排序（例如 `OrderByDescending(...)`），再按需分页。
+    - 必须支持导出模式：当 `input.IsExport == true` 时不分页；否则使用 `input.GetSkipCount()` + `input.PageSize` 分页。
+    - 必须使用 `Select` 投影到 RowDto/Dto（避免直接返回实体或导航属性）。
+    - 所有 EF Core 异步调用必须传入 `cancellationToken`。
+- **单个查询依赖注入（推荐）**：优先注入仓储 `I[Entity]Repository` 并使用 `GetAsync(predicate, includeDetails: true, cancellationToken)`。
+- **入参有效性（强制）**：`id` 入参必须用于谓词（例如 `a => a.Id == id`），禁止出现“入参未使用”的示例。
+- **注释（强制）**：
+    - Query 接口 / 实现类 / 方法必须有 XML 注释；实现类与其实现方法统一使用 `/// <inheritdoc />`。
+    - 分页 DTO（Input/Row/Result）每个字段/属性必须有 XML 注释。
+- **CancellationToken（强制）**：所有公开查询方法必须显式接收 `CancellationToken cancellationToken`，并向下透传到 EF Core/仓储调用。
+
+### 存放位置（与项目结构一致）
+- 项目：`src/[Project].UseCase`
+- 目录：`src/[Project].UseCase/[Entities]/Queries/`
+- 文件建议：
+    - 单条查询：`src/[Project].UseCase/[Entities]/Queries/[Entity]Query.cs`
+    - 分页查询：`src/[Project].UseCase/[Entities]/Queries/[Entity]PagedQuery.cs`（或与分页 DTO 同文件，按项目习惯）
+- 命名空间：建议 `namespace [Project].UseCase.[Entities].Queries;`
+- 说明：Query 是读侧用例逻辑；HttpApi 只注入并调用，不承载查询实现。
 
 #### 单个查询 (Single Query)
 - **接口**：`I[Entity]Query : IDedsiQuery`。
 - **方法**：`Task<[Entity]Dto> GetAsync(string id, CancellationToken cancellationToken)`。
 - **实现**：`[Entity]Query : I[Entity]Query`。
-- **依赖注入**：优先注入仓储 `I[Entity]Repository`；确需 DbContext 才注入相关 Provider/DbContext。
 - **逻辑**：
   - `await repository.GetAsync(predicate, includeDetails: true, cancellationToken)`。
   - 手动映射到 `[Entity]Dto`。
@@ -621,20 +832,24 @@ public class DeleteRiskCommandHandler(IRiskRepository riskRepository) : DedsiCom
 - **DTO 要求**：
   - `PagedInputDto` 必须包含 `IsExport`（导出时不分页）以及必要筛选字段。
   - 每个 DTO 字段/属性都必须有 XML 注释。
-- **实现**：`[Entity]PagedQuery : DedsiEfCoreQuery<[DbContext]>, I[Entity]PagedQuery`。
-- **依赖注入**：`IDbContextProvider<[DbContext]> dbContextProvider`（必要时 `ICurrentUser`）。
+- **实现**：`[Entity]PagedQuery : I[Entity]PagedQuery`。
+- **依赖注入**：注入 DbContext 接口（例如 `I[Project]DbContext` / 业务 `ISafetyEnvProtectionDbContext`）（必要时 `ICurrentUser`）。
 - **逻辑步骤（模板）**：
-  - `GetDbContextAsync()`
-  - `WhereIf` 应用筛选条件
-  - `CountAsync(cancellationToken)`
-  - `OrderByDescending(...)`
-  - `if (!input.IsExport) query = query.PageBy(input.GetSkipCount(), input.PageSize)`
-  - `Select` 投影到 RowDto
-  - `ToListAsync(cancellationToken)`
-  - 返回 `new ... { TotalCount = totalCount, Items = items }`
+    - `DbSet.AsNoTracking()`
+    - `WhereIf` 应用筛选条件
+    - `CountAsync(cancellationToken)`
+    - `OrderByDescending(...)`
+    - `if (!input.IsExport) query = query.PageBy(input.GetSkipCount(), input.PageSize)`
+    - `Select` 投影到 RowDto
+    - `ToListAsync(cancellationToken)`
+    - 返回 `new ... { TotalCount = totalCount, Items = items }`
 
 ### 模板参考
+
+#### 模板 A：分页查询（Paged Query）
 ```csharp
+// RiskPagedQuery.cs
+
 // Paged DTOs
 
 /// <summary>
@@ -706,10 +921,17 @@ public class RiskPagedResultDto : DedsiPagedResultDto<RiskPagedRowDto>
 {
 }
 
+
+using Dedsi.Ddd.Domain.Queries;
+using DigitalEmployeeDdd.EntityFrameworkCore;
+using DigitalEmployeeDdd.UseCase.Orders.Dtos;
+using Microsoft.EntityFrameworkCore;
+using Volo.Abp.Users;
+
 /// <summary>
 /// 风险分页查询
 /// </summary>
-public interface IRiskPagedQuery: IDedsiQuery
+public interface IRiskPagedQuery : IDedsiQuery
 {
     /// <summary>
     /// 分页查询
@@ -720,14 +942,14 @@ public interface IRiskPagedQuery: IDedsiQuery
 /// <inheritdoc />
 public class RiskPagedQuery(
     ICurrentUser currentUser,
-    IDbContextProvider<SafetyEnvProtectionDbContext> dbContextProvider)
-    : DedsiEfCoreQuery<SafetyEnvProtectionDbContext>(dbContextProvider), IRiskPagedQuery
+    ISafetyEnvProtectionDbContext safetyEnvProtectionDbContext): IRiskPagedQuery
 {
     /// <inheritdoc />
     public async Task<RiskPagedResultDto> PagedQueryAsync(RiskPagedInputDto input, CancellationToken cancellationToken)
     {
-        var dbContext = await GetDbContextAsync();
-        var query = dbContext.Risks
+        var query = safetyEnvProtectionDbContext
+            .Risks
+            .AsNoTracking()
             .WhereIf(!string.IsNullOrWhiteSpace(input.RiskNumber), a => a.RiskNumber.Contains(input.RiskNumber))
             .WhereIf(!string.IsNullOrWhiteSpace(input.InvolvingProject), a => a.InvolvingProject.Contains(input.InvolvingProject));
 
@@ -755,6 +977,14 @@ public class RiskPagedQuery(
         return new RiskPagedResultDto { TotalCount = totalCount, Items = items };
     }
 }
+```
+
+#### 模板 B：单个查询（Single Query）
+```csharp
+using Dedsi.Ddd.Domain.Queries;
+using DigitalEmployeeDdd.EntityFrameworkCore;
+using DigitalEmployeeDdd.Infrastructure.Repositories;
+using DigitalEmployeeDdd.UseCase.Orders.Dtos;
 
 /// <summary>
 /// 风险单个查询
@@ -769,7 +999,9 @@ public interface IRiskQuery : IDedsiQuery
 
 /// <inheritdoc />
 public class RiskQuery(
-    IRiskRepository riskRepository): IRiskQuery
+    IRiskRepository riskRepository,
+    ICurrentUser currentUser,
+    ISafetyEnvProtectionDbContext safetyEnvProtectionDbContext): IRiskQuery
 {
     /// <inheritdoc />
     public async Task<RiskDto> GetAsync(string id, CancellationToken cancellationToken)
@@ -778,6 +1010,7 @@ public class RiskQuery(
 
         var dto = new RiskDto()
         {
+            Id = domain.Id,
             CreatorName = domain.CreatorName,
             CreatorId = domain.CreatorId,
             CreationTime = domain.CreationTime,
@@ -803,50 +1036,178 @@ public class RiskQuery(
 - **名称**：`[Entity]Controller`。
 - **继承**：继承项目的基础控制器（例如 `SafetyEnvProtectionController`）。
 - **依赖**：注入 `I[Entity]Query`、`I[Entity]PagedQuery`、`IDedsiMediator`。
-- **端点**：
-  - `PagedQueryAsync` `[HttpPost]`：调用 PagedQuery。
-  - `ExportExcelAsync` `[HttpPost]`：调用 PagedQuery 并设置 `IsExport=true`，使用 `MiniExcel` 返回 Excel。
-  - `GetAsync` `[HttpGet("{id}")]`：调用 `Query.GetAsync`。
-  - `CreateAsync` `[HttpPost]`：Mediator 发送 CreateCommand。
-  - `UpdateAsync` `[HttpPost("{id}")]`：Mediator 发送 UpdateCommand。
-  - `DeleteAsync` `[HttpPost("{id}")]`：Mediator 发送 DeleteCommand。
+- **CancellationToken（强制）**：Controller Action 建议显式接收 `CancellationToken cancellationToken`（ASP.NET Core 会自动绑定到 `HttpContext.RequestAborted`），并向下透传到 Query/Mediator。
+- **端点（推荐最小集）**：
+    - `PagedQueryAsync`（`[HttpPost]`）：调用 PagedQuery。
+    - `ExportExcelAsync`（`[HttpPost]`）：调用 PagedQuery 并设置 `IsExport=true`，使用 `MiniExcel` 返回 Excel。
+    - `GetAsync`（`[HttpGet("{id}")]`）：调用 `Query.GetAsync`。
+    - `CreateAsync`（`[HttpPost]`）：Mediator 发送 CreateCommand。
+    - `UpdateAsync`（`[HttpPost("{id}")]`）：Mediator 发送 UpdateCommand。
+    - `DeleteAsync`（`[HttpPost("{id}")]`）：Mediator 发送 DeleteCommand。
+
+#### 路由风格提示（不要拍脑袋，优先跟随仓库现有 Controller）
+- 若项目使用 action route（例如 `[Route("api/.../[controller]/[action]")]`），`UpdateAsync` 与 `DeleteAsync` 都可以使用 `[HttpPost("{id}")]`，因为 action 名不同不会冲突。
+- 若项目使用 REST 资源路由（例如 `[Route("api/.../[controller]")]`），建议为分页/导出显式增加子路由（例如 `[HttpPost("paged")]` / `[HttpPost("export")]`），避免与 Create 的 `[HttpPost]` 冲突。
+
+#### 更新（Update）规则（按模板落地，保证可编译/可调用）
+- **路由**：优先使用 `[HttpPost("{id}")]`，并显式标注 `[FromRoute] string id`。
+- **请求体**：必须使用独立 Request 模型承载 Body（推荐 `Update[Entity]Request`），并显式标注 `[FromBody]`。
+- **Body 类型**：Update 的 Body 内部字段必须使用 `[Entity]CreateUpdateDto`（写入契约），不要使用 `[Entity]Dto`（展示契约），避免“照抄即类型不匹配”。
+- **返回类型**：与 `Update[Entity]Command : DedsiCommand<bool>` 保持一致，Controller 的 `UpdateAsync` 返回 `Task<bool>`。
+- **调用方式**：`return dedsiMediator.SendAsync(new Update[Entity]Command(id, request.[Entity]), HttpContext.RequestAborted);`（`CancellationToken` 必须透传）。
+
+### Request 模型（推荐补齐，避免示例不可用）
+> 你的 Controller 示例里使用了 `CreateRiskRequest`/`UpdateRiskRequest`。为保证“照抄能编译”，建议为每个实体补齐请求模型。
+
+- 存放位置（两选一，优先跟随仓库先例）：
+    - 选项 A（推荐）：`src/[Project].HttpApi/Requests/[Entity]Requests.cs`
+    - 选项 B（就近）：与 Controller 同目录/同文件末尾（仅当项目已有类似写法）
+- 约定：
+    - Create：`public record Create[Entity]Request([Entity]CreateUpdateDto [Entity]);`
+    - Update：`public record Update[Entity]Request([Entity]CreateUpdateDto [Entity]);`
+    - 字段必须加 XML 注释（与 DTO 一致）。
+
+### 导出 Excel（MiniExcel）落地要点
+- 依赖：项目需引用 `MiniExcel`（或仓库统一的导出组件）；`SaveAsAsync` 的扩展方法命名空间通常为 `MiniExcelLibs`。
+- 推荐做法：导出只复用分页查询的“筛选条件”，但返回用 RowDto 投影（避免导出整实体/导航属性）。
+- 文件名：包含实体名 + 时间戳（例如 `risk-20260110.xlsx`），避免并发下载冲突。
+
+### 存放位置（与项目结构一致）
+- 项目：`src/[Project].HttpApi`
+- 目录：优先按项目既有 Controller 组织；若无既定约定可用 `src/[Project].HttpApi/[Entities]/`
+- 文件：`src/[Project].HttpApi/[Entities]/[Entity]Controller.cs`
+- 命名空间：建议与目录一致（例如 `namespace [Project].HttpApi.[Entities];`）
+- 说明：Controller 只做路由/鉴权/入参/编排/透传；业务规则留在 Domain，写侧用例在 Commands，读侧用例在 Queries。
 
 ### 模板参考
 ```csharp
+using Dedsi.Ddd.CQRS.Mediators;
+using Microsoft.AspNetCore.Mvc;
+using MiniExcelLibs;
+using SafetyEnvProtection.Risks.CommandHandlers;
+using SafetyEnvProtection.Risks.Dtos;
+using SafetyEnvProtection.Risks.Queries;
+
+/// <summary>
+/// 风险
+/// </summary>
 public class RiskController(
     IRiskQuery riskQuery,
     IRiskPagedQuery riskPagedQuery,
     IDedsiMediator dedsiMediator) : SafetyEnvProtectionController
 {
+    /// <summary>
+    /// 风险：分页查询
+    /// </summary>
+    /// <param name="input"></param>
+    /// <returns></returns>
     [HttpPost]
     public Task<RiskPagedResultDto> PagedQueryAsync(RiskPagedInputDto input)
     {
         input.IsExport = false;
         return riskPagedQuery.PagedQueryAsync(input, HttpContext.RequestAborted);
     }
-
+    
+    /// <summary>
+    /// 风险：导出
+    /// </summary>
+    /// <param name="input"></param>
+    /// <returns></returns>
     [HttpPost]
     public async Task<IActionResult> ExportExcelAsync(RiskPagedInputDto input)
     {
+        // 导出场景
         input.IsExport = true;
         var result = await riskPagedQuery.PagedQueryAsync(input, HttpContext.RequestAborted);
-        // ... MiniExcel logic ...
+
         var memoryStream = new MemoryStream();
-        await memoryStream.SaveAsAsync(result.Items, ...);
+        await memoryStream.SaveAsAsync(
+            result.Items,
+            cancellationToken: cancellationToken
+        );
         memoryStream.Seek(0, SeekOrigin.Begin);
-        return File(memoryStream, "application/vnd...", "export.xlsx");
+
+        return File(memoryStream, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", $"风险导出{DateTime.Now:yyyyMMddHHmmss}.xlsx");
     }
-
+    
+    /// <summary>
+    /// 风险：查询详情
+    /// </summary>
+    /// <param name="id"></param>
+    /// <returns></returns>
     [HttpGet("{id}")]
-    public Task<RiskDto> GetAsync([FromRoute] string id) => riskQuery.GetAsync(id, HttpContext.RequestAborted);
-
+    public Task<RiskDto> GetAsync([FromRoute] string id)
+    {
+        return riskQuery.GetAsync(id, HttpContext.RequestAborted);
+    }
+    
+    /// <summary>
+    /// 风险：创建
+    /// </summary>
+    /// <param name="request"></param>
+    /// <returns></returns>
     [HttpPost]
-    public Task<string> CreateAsync(CreateRiskRequest request) => dedsiMediator.SendAsync(new CreateRiskCommand(request.Risk), HttpContext.RequestAborted);
-
+    public Task<string> CreateAsync(CreateRiskRequest request)
+    {
+        var cmd = new CreateRiskCommand(request.Risk);
+        return dedsiMediator.SendAsync(cmd, HttpContext.RequestAborted);
+    }
+    
+    /// <summary>
+    /// 风险：修改
+    /// </summary>
+    /// <param name="id"></param>
+    /// <param name="request"></param>
+    /// <returns></returns>
     [HttpPost("{id}")]
-    public Task<bool> UpdateAsync([FromRoute] string id, [FromBody] UpdateRiskRequest request) => dedsiMediator.SendAsync(new UpdateRiskCommand(id, request.Risk), HttpContext.RequestAborted);
-
+    public Task<bool> UpdateAsync([FromRoute] string id, [FromBody] UpdateRiskRequest request)
+    {
+        return dedsiMediator.SendAsync(new UpdateRiskCommand(id, request.Risk), HttpContext.RequestAborted);
+    }
+    
+    /// <summary>
+    /// 删除
+    /// </summary>
+    /// <param name="id"></param>
+    /// <returns></returns>
     [HttpPost("{id}")]
-    public Task<bool> DeleteAsync([FromRoute] string id) => dedsiMediator.SendAsync(new DeleteRiskCommand(id), HttpContext.RequestAborted);
+    public Task<bool> DeleteAsync([FromRoute] string id)
+    {
+        return dedsiMediator.SendAsync(new DeleteRiskCommand(id), HttpContext.RequestAborted);
+    }
 }
+
+/// <summary>
+/// 创建风险请求对象
+/// </summary>
+/// <param name="Risk"></param>
+public record CreateRiskRequest(RiskCreateUpdateDto Risk);
+
+/// <summary>
+/// 修改风险请求对象
+/// </summary>
+/// <param name="Risk"></param>
+public record UpdateRiskRequest(RiskCreateUpdateDto Risk);
 ```
+
+---
+
+## 常见坑与验收清单
+
+### 常见坑
+- Update 端点 Body 误用展示 `Dto`：必须用写入契约 `CreateUpdateDto`（否则 Command 入参类型不匹配）。
+- Query 忘记 `AsNoTracking()`：分页列表默认只读，避免不必要的跟踪开销。
+- 分页顺序错误：必须“筛选 → Count → 排序 →（非导出则分页）→ 投影 → ToList”。
+- `CancellationToken` 断链：Controller/Query/Command 接了 token 但没有传到 EF Core/仓储异步方法。
+- `id` 入参未用于谓词：示例/实现必须 `a => a.Id == id`，否则既不安全也容易出现“入参未使用”。
+- enum 未显式赋值：必须显式赋值且业务值从 1 开始（禁止默认 0）。
+
+### 验收清单（生成后自检）
+1. 文件落点与依赖方向正确（Domain 不依赖 EF/Core/HttpApi）。
+2. Command/Handler、Query 接口/实现、Repository 接口/实现均同文件，且拆分粒度符合约定。
+3. Controller/Query/Command 公开入口显式接收并透传 `CancellationToken`（Controller 建议以参数形式接入）。
+4. Create/Update/Delete 的返回类型与 Command 返回类型一致（尤其 Update/Delete 常用 `bool`）。
+5. Update/Delete 路由不冲突：action route 可复用 `[HttpPost("{id}")]`；资源路由需为 paged/export 增加子路由。
+6. PagedQuery 支持导出模式：`IsExport=true` 不分页；导出列与 RowDto 对齐（避免导出实体/导航属性）。
+7. Create/Update 的 Body 使用写入契约 `CreateUpdateDto`，展示 `Dto` 仅用于输出。
+8. 分页查询实现顺序固定：筛选 → Count → 排序 →（非导出则分页）→ 投影 → ToList。
