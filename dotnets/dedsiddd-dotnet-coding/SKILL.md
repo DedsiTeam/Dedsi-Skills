@@ -158,7 +158,7 @@ description: 用于在 DedsiDDD + .NET 项目中，按统一约定生成 DDD/CQR
 | EF Core DbContext | `src/[Project].Infrastructure` | `src/[Project].Infrastructure/EntityFrameworkCore/` | `[Project]DbContext.cs` |
 | EF Core 映射 | `src/[Project].Infrastructure` | `src/[Project].Infrastructure/EntityFrameworkCore/EntityConfigurations/` | `[Entity]Configuration.cs` |
 | 仓储（接口+实现同文件） | `src/[Project].Infrastructure` | `src/[Project].Infrastructure/Repositories/` | `[Entity]Repository.cs` |
-| Commands（命令+处理器同文件） | `src/[Project].UseCase` | `src/[Project].UseCase/[Entities]/CommandHandlers/` | `Create[Entity]Command.cs` / `Update[Entity]Command.cs` / `Delete[Entity]Command.cs` |
+| Commands（命令+处理器同文件） | `src/[Project].UseCase` | `src/[Project].UseCase/[Entities]/CommandHandlers/` | `Create[Entity]CommandHandler.cs` / `Update[Entity]CommandHandler.cs` / `Delete[Entity]CommandHandler.cs` |
 | Queries（接口+实现同文件） | `src/[Project].UseCase` | `src/[Project].UseCase/[Entities]/Queries/` | `[Entity]Query.cs` / `[Entity]PagedQuery.cs` |
 | Controller | `src/[Project].HttpApi` | （随项目现有 Controller 组织） | `[Entity]Controller.cs` |
 | Controller Requests（推荐） | `src/[Project].HttpApi` | `src/[Project].HttpApi/Requests/` | `[Entity]Requests.cs` |
@@ -173,7 +173,7 @@ description: 用于在 DedsiDDD + .NET 项目中，按统一约定生成 DDD/CQR
     - 新增 `[Entity]Repository.cs`（接口+实现）
 3. UseCase：
     - `[Entity]Dto.cs` / `[Entity]CreateUpdateDto.cs`
-    - `Create[Entity]Command.cs` / `Update[Entity]Command.cs` / `Delete[Entity]Command.cs`
+    - `Create[Entity]CommandHandler.cs` / `Update[Entity]CommandHandler.cs` / `Delete[Entity]CommandHandler.cs`
     - `[Entity]Query.cs` + `[Entity]PagedQuery.cs`
 4. HttpApi：
     - `[Entity]Controller.cs`
@@ -662,9 +662,9 @@ public class TeacherRepository(IDbContextProvider<DigitalEmployeeDddDbContext> d
 - 项目：`src/[Project].UseCase`
 - 目录：`src/[Project].UseCase/[Entities]/CommandHandlers/`
 - 文件建议（按命令拆分）：
-    - `src/[Project].UseCase/[Entities]/CommandHandlers/Create[Entity]Command.cs`
-    - `src/[Project].UseCase/[Entities]/CommandHandlers/Update[Entity]Command.cs`
-    - `src/[Project].UseCase/[Entities]/CommandHandlers/Delete[Entity]Command.cs`
+    - `src/[Project].UseCase/[Entities]/CommandHandlers/Create[Entity]CommandHandler.cs`
+    - `src/[Project].UseCase/[Entities]/CommandHandlers/Update[Entity]CommandHandler.cs`
+    - `src/[Project].UseCase/[Entities]/CommandHandlers/Delete[Entity]CommandHandler.cs`
 - 命名空间：建议 `namespace [Project].UseCase.[Entities].CommandHandlers;`
 - 说明：Commands/Handlers 属于用例层写侧；不要放到 HttpApi（Controller 只负责编排与透传）。
 
@@ -686,7 +686,7 @@ public class TeacherRepository(IDbContextProvider<DigitalEmployeeDddDbContext> d
 
 ### 模板参考
 ```csharp
-// Create[Entity]Command.cs
+// Create[Entity]CommandHandler.cs
 using Dedsi.Ddd.CQRS.CommandHandlers;
 using Dedsi.Ddd.CQRS.Commands;
 using Dedsi.Ddd.CQRS.Mediators;
@@ -715,7 +715,7 @@ public class CreateRiskCommandHandler(IRiskRepository riskRepository) : DedsiCom
 ```
 
 ```csharp
-// Update[Entity]Command.cs
+// Update[Entity]CommandHandler.cs
 using Dedsi.Ddd.CQRS.CommandHandlers;
 using Dedsi.Ddd.CQRS.Commands;
 using Dedsi.Ddd.CQRS.Mediators;
@@ -752,7 +752,7 @@ public class UpdateRiskCommandHandler(IRiskRepository riskRepository) : DedsiCom
 ```
 
 ```csharp
-// Delete[Entity]Command.cs
+// Delete[Entity]CommandHandler.cs
 using Dedsi.Ddd.CQRS.CommandHandlers;
 using Dedsi.Ddd.CQRS.Commands;
 using Dedsi.Ddd.CQRS.Mediators;
@@ -824,7 +824,7 @@ public class DeleteRiskCommandHandler(IRiskRepository riskRepository) : DedsiCom
   - `id` 入参必须用于谓词。
 
 #### 分页查询 (Paged Query)
-- **入参**：`[Entity]PagedInputDto : DedsiPagedRequestDto`。
+- **入参**：`[Entity]PagedInputDto : DedsiPagedRequestDto`, `DedsiPagedRequestDto`的命名空间为：Dedsi.Ddd.Application.Contracts.Dtos。
 - **行 DTO**：`[Entity]PagedRowDto`。
 - **结果**：`[Entity]PagedResultDto : DedsiPagedResultDto<RowDto>`。
 - **接口**：`I[Entity]PagedQuery : IDedsiQuery`。
@@ -1059,9 +1059,8 @@ public class RiskQuery(
 ### Request 模型（推荐补齐，避免示例不可用）
 > 你的 Controller 示例里使用了 `CreateRiskRequest`/`UpdateRiskRequest`。为保证“照抄能编译”，建议为每个实体补齐请求模型。
 
-- 存放位置（两选一，优先跟随仓库先例）：
-    - 选项 A（推荐）：`src/[Project].HttpApi/Requests/[Entity]Requests.cs`
-    - 选项 B（就近）：与 Controller 同目录/同文件末尾（仅当项目已有类似写法）
+- 存放位置：
+    - 与 Controller 同目录/同文件末尾
 - 约定：
     - Create：`public record Create[Entity]Request([Entity]CreateUpdateDto [Entity]);`
     - Update：`public record Update[Entity]Request([Entity]CreateUpdateDto [Entity]);`
