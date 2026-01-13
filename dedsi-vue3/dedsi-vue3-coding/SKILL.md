@@ -126,7 +126,7 @@ export const myApiService = new MyApiService()
 <script setup lang="ts">
 import { reactive, ref, onMounted } from 'vue'
 import { myApiService } from '@/apiServices'
-import { DedsiMessage } from '@/components/dedsi-message'
+import { DedsiMessage } from 'dedsi-vue-ui'
 
 // State & Methods...
 const fetchData = async () => {
