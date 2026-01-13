@@ -129,7 +129,7 @@ description: 基于 DedsiFramework.md 的信息，提供 Dedsi Framework（ABP �
   - `Queries/DedsiDapperQuery`
   - `Queries/DedsiEfCoreQuery`：提供 `GetNoTrackingQueryableAsync`。
 - 仓储实现
-  - `Repositories/DedsiCqrsEfCoreRepository`：`IDedsiCqrsRepository` 的 EF Core 实现。
+  - `Repositories/DedsiDddEfCoreRepository`：`IDedsiCqrsRepository` 的 EF Core 实现。
   - `Repositories/DedsiEfCoreRepository`：`IDedsiRepository` 的 EF Core 实现（分页、批量删除等）。
 
 ### 8) Dedsi.SqlSugar
@@ -246,7 +246,7 @@ public class YourProjectModule : AbpModule;
 **目标**：读写分离与通用数据访问能力统一。
 
 策略建议：
-- 写侧（命令）使用 `IDedsiCqrsRepository` / 其 EF Core 实现 `DedsiCqrsEfCoreRepository`。
+- 写侧（命令）使用 `IDedsiCqrsRepository` / 其 EF Core 实现 `DedsiDddEfCoreRepository`。
 - 读侧（查询）使用 `IDedsiQuery` 标记，并选择：
   - EF Core：继承/使用 `DedsiEfCoreQuery` 获取无追踪 IQueryable（`GetNoTrackingQueryableAsync`）。
   - Dapper：使用 `DedsiDapperQuery`。
