@@ -219,6 +219,30 @@ public class [Entity]CreateUpdateDto
     /// </summary>
     public IEnumerable<[Child]CreateUpdateDto> Children { get; set; } = [];
 }
+
+
+public class [Entity]PagedInputDto : DedsiPagedRequestDto
+{
+    /// <summary>
+    /// 关键字
+    /// </summary>
+    public string? Keyword { get; set; }
+}
+
+public class [Entity]PagedRowDto
+{
+    /// <summary>
+    /// 主键
+    /// </summary>
+    public string Id { get; set; } = default!;
+
+    /// <summary>
+    /// 示例字段
+    /// </summary>
+    public string? Example { get; set; }
+}
+
+public class [Entity]PagedResultDto : DedsiPagedResultDto<[Entity]PagedRowDto>;
 ```
 
 ---
@@ -404,7 +428,7 @@ public class Delete[Entity]CommandHandler(I[Entity]Repository repository)
 
 ### 规则
 - 接口与实现同文件
-- 单个查询注入仓储；分页查询注入 DbContext 接口
+- 查询注入 DbContext 接口
 - 分页查询必须 `AsNoTracking()`
 - 固定顺序：筛选 → Count → 排序 →（非导出则分页）→ 投影 → ToList
 - `id` 入参必须用于谓词
@@ -419,41 +443,22 @@ using Dedsi.Ddd.Domain.Queries;
 using Microsoft.EntityFrameworkCore;
 using Volo.Abp.Linq;
 
-public class [Entity]PagedInputDto : DedsiPagedRequestDto
+/// <summary>
+/// [Entity] 分页查询
+/// </summary>
+/// <param name="[Project]DbContext"></param>
+public class [Entity]PagedQuery(I[Project]DbContext [Project]DbContext) : IDedsiQuery
 {
     /// <summary>
-    /// 关键字
+    /// [Entity] 分页条件查询
     /// </summary>
-    public string? Keyword { get; set; }
-}
-
-public class [Entity]PagedRowDto
-{
-    /// <summary>
-    /// 主键
-    /// </summary>
-    public string Id { get; set; } = default!;
-
-    /// <summary>
-    /// 示例字段
-    /// </summary>
-    public string? Example { get; set; }
-}
-
-public class [Entity]PagedResultDto : DedsiPagedResultDto<[Entity]PagedRowDto>;
-
-public interface I[Entity]PagedQuery : IDedsiQuery
-{
-    Task<[Entity]PagedResultDto> PagedQueryAsync([Entity]PagedInputDto input, CancellationToken cancellationToken);
-}
-
-/// <inheritdoc />
-public class [Entity]PagedQuery(I[Project]DbContext dbContext) : I[Entity]PagedQuery
-{
-    /// <inheritdoc />
+    /// <param name="input"></param>
+    /// <param name="cancellationToken"></param>
+    /// <returns></returns>
     public async Task<[Entity]PagedResultDto> PagedQueryAsync([Entity]PagedInputDto input, CancellationToken cancellationToken)
     {
-        var query = dbContext.[Entities]
+        var query = [Project]DbContext
+            .[Entities]
             .AsNoTracking()
             .WhereIf(!string.IsNullOrWhiteSpace(input.Keyword), e => e.RequiredField.Contains(input.Keyword!));
 
@@ -478,21 +483,25 @@ public class [Entity]PagedQuery(I[Project]DbContext dbContext) : I[Entity]PagedQ
 ```csharp
 using Dedsi.Ddd.Domain.Queries;
 
-public interface I[Entity]Query : IDedsiQuery
+/// <summary>
+/// [Entity] 查询
+/// </summary>
+/// <param name="dbContext"></param>
+/// <param name="repository"></param>
+public class [Entity]Query(
+I[Project]DbContext [Project]DbContext,
+I[Entity]Repository [Entity]Repository) : IDedsiQuery
 {
+
     /// <summary>
     /// 获取详情
     /// </summary>
-    Task<[Entity]Dto> GetAsync(string id, CancellationToken cancellationToken);
-}
-
-/// <inheritdoc />
-public class [Entity]Query(I[Entity]Repository repository) : I[Entity]Query
-{
-    /// <inheritdoc />
+    /// <param name="id"></param>
+    /// <param name="cancellationToken"></param>
+    /// <returns></returns>
     public async Task<[Entity]Dto> GetAsync(string id, CancellationToken cancellationToken)
     {
-        var domain = await repository.GetAsync(e => e.Id == id, true, cancellationToken);
+        var domain = await [Entity]Repository.GetAsync(e => e.Id == id, true, cancellationToken);
         return new [Entity]Dto
         {
             Id = domain.Id,
@@ -541,9 +550,9 @@ using MiniExcelLibs.OpenXml;
 /// [Entity]
 /// </summary>
 public class [Entity]Controller(
-    I[Entity]Query query,
-    I[Entity]PagedQuery pagedQuery,
-    IDedsiMediator mediator) : [Project]Controller
+    [Entity]Query [Entity]Query,
+    [Entity]PagedQuery [Entity]PagedQuery,
+    IDedsiMediator dedsiMediator) : [Project]Controller
 {
     /// <summary>
     /// 分页查询
@@ -552,7 +561,7 @@ public class [Entity]Controller(
     public Task<[Entity]PagedResultDto> PagedQueryAsync([FromBody] [Entity]PagedInputDto input)
     {
         input.IsExport = false;
-        return pagedQuery.PagedQueryAsync(input, HttpContext.RequestAborted);
+        return [Entity]PagedQuery.PagedQueryAsync(input, HttpContext.RequestAborted);
     }
 
     /// <summary>
@@ -562,7 +571,7 @@ public class [Entity]Controller(
     public async Task<IActionResult> ExportExcelAsync([FromBody] [Entity]PagedInputDto input)
     {
         input.IsExport = true;
-        var result = await pagedQuery.PagedQueryAsync(input, HttpContext.RequestAborted);
+        var result = await [Entity]PagedQuery.PagedQueryAsync(input, HttpContext.RequestAborted);
 
         var stream = new MemoryStream();
         await stream.SaveAsAsync(result.Items, cancellationToken: HttpContext.RequestAborted);
@@ -580,28 +589,28 @@ public class [Entity]Controller(
     /// </summary>
     [HttpGet("{id}")]
     public Task<[Entity]Dto> GetAsync([FromRoute] string id)
-        => query.GetAsync(id, HttpContext.RequestAborted);
+        => [Entity]Query.GetAsync(id, HttpContext.RequestAborted);
 
     /// <summary>
     /// 创建
     /// </summary>
     [HttpPost]
     public Task<string> CreateAsync([FromBody] Create[Entity]Request request)
-        => mediator.SendAsync(new Create[Entity]Command(request.[Entity]), HttpContext.RequestAborted);
+        => dedsiMediator.SendAsync(new Create[Entity]Command(request.[Entity]), HttpContext.RequestAborted);
 
     /// <summary>
     /// 修改
     /// </summary>
     [HttpPost("{id}")]
     public Task<bool> UpdateAsync([FromRoute] string id, [FromBody] Update[Entity]Request request)
-        => mediator.SendAsync(new Update[Entity]Command(id, request.[Entity]), HttpContext.RequestAborted);
+        => dedsiMediator.SendAsync(new Update[Entity]Command(id, request.[Entity]), HttpContext.RequestAborted);
 
     /// <summary>
     /// 删除
     /// </summary>
     [HttpPost("{id}")]
     public Task<bool> DeleteAsync([FromRoute] string id)
-        => mediator.SendAsync(new Delete[Entity]Command(id), HttpContext.RequestAborted);
+        => dedsiMediator.SendAsync(new Delete[Entity]Command(id), HttpContext.RequestAborted);
 }
 
 /// <summary>
