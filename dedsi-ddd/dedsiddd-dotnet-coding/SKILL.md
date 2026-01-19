@@ -137,14 +137,14 @@ public class [Entity] : DedsiAggregateRoot<string>
 
     public void ChangeRequiredField(string value)
     {
-        RequiredField = Check.NotNullOrWhiteSpace(value, nameof(value));
+        RequiredField = Check.NotNullOrWhiteSpace(value, nameof(RequiredField));
     }
 
     public ICollection<[Child]> Children { get; private set; } = [];
 
     public void AddChild([Child] child)
     {
-        Children.Add(Check.NotNull(child, nameof(child)));
+        Children.Add(Check.NotNull(child, nameof([Child])));
     }
 
     public void ClearChildren()
