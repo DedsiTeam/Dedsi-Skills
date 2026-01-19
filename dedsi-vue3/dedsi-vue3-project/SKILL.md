@@ -1,3 +1,8 @@
+---
+name: dedsi-vue3-project
+description: Vue 3 project architecture overview with specific tech stack and development guidelines
+---
+
 # Dedsi Vue3 项目技能
 
 本文档概述了项目的架构、技术栈和开发指南。

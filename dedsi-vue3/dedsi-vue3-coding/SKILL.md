@@ -1,3 +1,8 @@
+---
+name: dedsi-vue3-coding
+description: Vue 3 coding guidelines and best practices with Dedsi UI components
+---
+
 # Dedsi Vue3 Coding Skills
 
 ## 1. 技术栈 (Technology Stack)
