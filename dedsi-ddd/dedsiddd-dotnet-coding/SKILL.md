@@ -4,7 +4,6 @@ description: 用于在 DedsiDDD + .NET 项目中，按统一约定生成 DDD/CQR
 ---
 
 ## 范围与目标
-
 本 Skill 用于在 DedsiDDD + .NET 项目中生成可编译、可落地的代码骨架。
 
 **冲突优先级**：本 SKILL 约定 > 现有仓库约定 > 一般 DDD/CQRS 习惯。
@@ -102,7 +101,7 @@ description: 用于在 DedsiDDD + .NET 项目中，按统一约定生成 DDD/CQR
 ## 生成领域模型
 
 ### 规则
-- 聚合根继承 `AggregateRoot<string>` 和 `IDedsiCreationAuditedObject`
+- 聚合根继承 `DedsiAggregateRoot<string>`
 - 必须包含 `protected` 无参构造函数（供 ORM）
 - 属性使用 `private set`
 - 状态变更通过聚合根方法：`Change+属性名`、`Add+元素名`、`Remove+元素名`、`Clear+集合名`
@@ -112,14 +111,13 @@ description: 用于在 DedsiDDD + .NET 项目中，按统一约定生成 DDD/CQR
 
 ### 模板
 ```csharp
-using Dedsi.Ddd.Domain.Auditing.Contracts;
 using Volo.Abp;
-using Volo.Abp.Domain.Entities;
+using Dedsi.Ddd.Domain.Entities;
 
 /// <summary>
 /// [Entity]
 /// </summary>
-public class [Entity] : AggregateRoot<string>, IDedsiCreationAuditedObject
+public class [Entity] : DedsiAggregateRoot<string>
 {
     protected [Entity]() { }
 
@@ -152,6 +150,32 @@ public class [Entity] : AggregateRoot<string>, IDedsiCreationAuditedObject
     public void ClearChildren()
     {
         Children.Clear();
+    }
+}
+
+/// <summary>
+/// [Entity]
+/// </summary>
+public class [Child]
+{
+    public string [Entity]Id { get; private set; }
+
+    protected [Child]() { }
+
+    public [Child](string id, string requiredField)
+        : base(id)
+    {
+        ChangeRequiredField(requiredField);
+    }
+
+    /// <summary>
+    /// 中文注释
+    /// </summary>
+    public string RequiredField { get; private set; }
+
+    public void ChangeRequiredField(string value)
+    {
+        RequiredField = Check.NotNullOrWhiteSpace(value, nameof(value));
     }
 }
 ```
@@ -220,7 +244,9 @@ public class [Entity]CreateUpdateDto
     public IEnumerable<[Child]CreateUpdateDto> Children { get; set; } = [];
 }
 
-
+/// <summary>
+/// [Entity]PagedInputDto
+/// </summary>
 public class [Entity]PagedInputDto : DedsiPagedRequestDto
 {
     /// <summary>
@@ -229,6 +255,9 @@ public class [Entity]PagedInputDto : DedsiPagedRequestDto
     public string? Keyword { get; set; }
 }
 
+/// <summary>
+/// [Entity]PagedRowDto
+/// </summary>
 public class [Entity]PagedRowDto
 {
     /// <summary>
@@ -242,6 +271,9 @@ public class [Entity]PagedRowDto
     public string? Example { get; set; }
 }
 
+/// <summary>
+/// [Entity]PagedResultDto
+/// </summary>
 public class [Entity]PagedResultDto : DedsiPagedResultDto<[Entity]PagedRowDto>;
 ```
 
@@ -316,8 +348,8 @@ internal class [Entity]Configuration : IEntityTypeConfiguration<[Entity]>
 ## 生成仓储
 
 ### 规则
-- 接口：`I[AggregateRoot]Repository : IDedsiCqrsRepository<AggregateRoot, KeyType>`
-- 实现：`[AggregateRoot]Repository : DedsiDddEfCoreRepository<DbContext, AggregateRoot, KeyType>`
+- 接口：`I[Entity]Repository : IDedsiCqrsRepository<[Entity], KeyType>`
+- 实现：`[Entity]Repository : DedsiDddEfCoreRepository<DbContext, [Entity], KeyType>`
 - 接口和实现必须在同一个文件中
 - 构造函数注入 `IDbContextProvider<DbContext>`
 
@@ -378,7 +410,6 @@ public class Create[Entity]CommandHandler(I[Entity]Repository repository)
     }
 }
 
-// Update
 /// <summary>
 /// 更新 [Entity] 命令
 /// </summary>
