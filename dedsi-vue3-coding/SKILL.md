@@ -65,9 +65,7 @@ const tableData = ref<Dto[]>()
 const pagination = reactive({
   current: 1,
   pageSize: 10,
-  total: 0,
-  showSizeChanger: true,
-  showTotal: (total: number) => `共 ${total} 条`,
+  total: 0
 })
 
 // 查询参数
@@ -83,7 +81,7 @@ const formState = reactive<any>({ ... })
 |-------------------|-----------------|------------------|
 | Card              | `dedsi-card`    | `:bordered="false"` |
 | Button            | `dedsi-button`  | `type="primary"`, `@click` |
-| Table             | `dedsi-table`   | `:columns`, `:data`, `:total`, `@page-change` |
+| Table             | `dedsi-table`   | `:columns`, `:data`, `:total`, `:pageSize`, ':loading', `@page-change`, `@page-size-change` |
 | Form              | `dedsi-form`    | `:model`, `layout`, `@finish` |
 | Input             | `dedsi-input`   | `v-model` |
 | Modal             | `dedsi-modal`   | `v-model:visible`, `@cancel` |
