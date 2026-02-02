@@ -3,59 +3,133 @@ name: dedsi-vue3-coding
 description: Vue 3 coding guidelines and best practices with Dedsi UI components
 ---
 
-# Dedsi Vue3 Coding Skills
+# Dedsi Vue3 Coding
 
-## 1. 技术栈 (Technology Stack)
-- **Framework**: Vue 3 (Composition API)
-- **Language**: TypeScript
-- **UI Library**: Dedsi UI
-  - Prefix: `dedsi-` (e.g., `dedsi-button`, `dedsi-table`)
-- **Icons**: `@ant-design/icons-vue`
-- **Date Handling**: `dayjs`
-- **HTTP Client**: Custom `AxiosRequest` wrapper
+Vue 3 + TypeScript 项目开发规范，使用 Dedsi UI 组件库。
 
-## 2. 项目结构 (Project Structure)
-- `src/apiServices/`: API 服务层，包含接口定义和 DTO 类型。
-  - `identitys/`: 身份认证相关服务 (User, Role, Permission 等)。
-  - `index.ts`: 导出所有服务。
-  - `types.ts`: 定义请求/响应接口 (DTO)。
-- `src/views/`: 页面视图层。
-  - `user/index.vue`: 标准的 CURD 页面示例。
+## 何时使用
 
-## 3. 开发规范 (Development Guidelines)
+- 创建新的 Vue 3 页面组件
+- 实现 CRUD（增删改查）功能
+- 定义 API 服务层
+- 使用 Dedsi UI 组件
+- 处理表单和表格数据
+- 遵循项目代码规范
 
-### 3.1 API Service Layer
-- **位置**: `src/apiServices/{module}/`
-- **类定义**: 使用 class 定义 Service，内部实例化 `AxiosRequest`。
-- **单例导出**: 导出 Service 的实例 (e.g., `export const userApiService = new UserApiService()`).
-- **类型定义**: DTO (Data Transfer Objects) 必须定义在同级或公共的 `types.ts` 中。
-- **标准方法**:
-  - `pagedQuery(data: InputDto)`: 分页查询
-  - `get(id: string)`: 获取详情
-  - `create(data: CreateResult)`: 创建
-  - `update(id: string, data: UpdateRequest)`: 更新
-  - `delete(id: string)`: 删除
+---
 
-**Example:**
-```typescript
-export class UserApiService {
-    private request = new AxiosRequest(IdentityApiServiceUrl)
+## 能力规则
 
-    public pagedQuery(data: UserPagedInputDto) {
-        return this.request.post<UserPagedResultDto, UserPagedInputDto>('/api/Identity/User/PagedQuery', data)
-    }
-}
+没有这些规则，AI 无法解决问题或生成的代码无法正确运行。
+
+### API 服务层
+
+| 规则 | 影响 | 描述 |
+|------|------|------|
+| [api-service-patterns.md](rules/api-service-patterns.md) | HIGH | API 服务类定义和标准方法 |
+
+### View 组件
+
+| 规则 | 影响 | 描述 |
+|------|------|------|
+| [view-component-patterns.md](rules/view-component-patterns.md) | HIGH | 页面组件结构和状态管理 |
+| [component-mapping.md](rules/component-mapping.md) | HIGH | Dedsi UI 组件映射 |
+| [icon-usage.md](rules/icon-usage.md) | MEDIUM | 图标使用规范 |
+
+### 数据处理
+
+| 规则 | 影响 | 描述 |
+|------|------|------|
+| [table-data-handling.md](rules/table-data-handling.md) | HIGH | Table 数据加载和分页 |
+| [form-handling.md](rules/form-handling.md) | HIGH | 表单状态和提交处理 |
+| [form-validation.md](rules/form-validation.md) | HIGH | 表单验证规则 |
+| [delete-operations.md](rules/delete-operations.md) | MEDIUM | 删除操作和确认 |
+| [view-detail-modal.md](rules/view-detail-modal.md) | MEDIUM | 查看详情弹窗 |
+
+---
+
+## 效率规则
+
+这些规则帮助 AI 更有效、更一致地解决问题。
+
+### 代码模板
+
+| 规则 | 影响 | 描述 |
+|------|------|------|
+| [code-templates.md](rules/code-templates.md) | MEDIUM | 标准 API Service 和 View 组件模板 |
+
+---
+
+## 技术栈
+
+- **框架**: Vue 3 (Composition API)
+- **语言**: TypeScript
+- **UI 组件库**: Dedsi UI
+  - 前缀: `dedsi-` (如 `dedsi-button`, `dedsi-table`)
+- **图标**: `@ant-design/icons-vue`
+- **日期处理**: `dayjs`
+- **HTTP 客户端**: 自定义 `AxiosRequest` 封装
+
+---
+
+## 项目结构
+
+```
+src/
+├── apiServices/          # API 服务层
+│   ├── identitys/        # 身份认证服务
+│   │   ├── userService.ts
+│   │   ├── types.ts
+│   │   └── index.ts
+│   └── index.ts          # 统一导出
+├── components/           # 可复用组件
+├── configs/             # 配置文件
+├── layouts/             # 布局组件
+├── router/              # 路由配置
+├── stores/              # Pinia 状态管理
+├── utils/               # 工具函数
+├── views/               # 页面视图
+└── App.vue
 ```
 
-### 3.2 View Components
-页面开发需遵循 Composition API (`<script setup lang="ts">`) 风格。
+---
 
-#### 页面布局结构
-1. **Search Card**: 顶部搜索栏，使用 `dedsi-card` 包裹 `dedsi-form` (layout="inline")。
-2. **Table Card**: 数据表格，使用 `dedsi-card` 包裹 `dedsi-table`。
-3. **Modal**: 新增/编辑弹窗，使用 `dedsi-modal` 包裹 `dedsi-form` (layout="vertical")。
+## 开发规范
 
-#### 核心状态定义
+### 核心原则
+
+- **组件优先**: 优先使用 `dedsi-` 前缀的 Dedsi UI 组件
+- **Composition API**: 所有组件使用 `<script setup lang="ts">`
+- **类型安全**: 严格使用 TypeScript 类型定义
+- **错误处理**: 统一使用 try-catch 和 `DedsiMessage`
+
+### API 服务层
+
+**位置**: `src/apiServices/{module}/`
+
+- 使用 `class` 定义服务
+- 导出服务实例（单例模式）
+- DTO 类型定义在 `types.ts` 中
+- 实现标准方法：`pagedQuery`, `get`, `create`, `update`, `delete`
+
+### View 组件
+
+**使用 Composition API**:
+
+```vue
+<script setup lang="ts">
+import { reactive, ref, onMounted } from 'vue'
+</script>
+```
+
+**标准页面结构**:
+
+1. 搜索卡片 (`dedsi-card` + `dedsi-form`)
+2. 表格卡片 (`dedsi-card` + `dedsi-table`)
+3. 弹窗表单 (`dedsi-modal` + `dedsi-form`)
+
+### 核心状态
+
 ```typescript
 // 表格数据
 const tableLoading = ref(false)
@@ -76,71 +150,54 @@ const modalVisible = ref(false)
 const formState = reactive<any>({ ... })
 ```
 
-#### 常用组件对照表
-| Standard Component | Dedsi Component | Key Props/Events |
-|-------------------|-----------------|------------------|
-| Card              | `dedsi-card`    | `:bordered="false"` |
-| Button            | `dedsi-button`  | `type="primary"`, `@click` |
-| Table             | `dedsi-table`   | `:columns`, `:data`, `:total`, `:pageSize`, ':loading', `@page-change`, `@page-size-change` |
-| Form              | `dedsi-form`    | `:model`, `layout`, `@finish` |
-| Input             | `dedsi-input`   | `v-model` |
-| Modal             | `dedsi-modal`   | `v-model:visible`, `@cancel` |
-| Message           | `DedsiMessage`  | `DedsiMessage.success()`, `DedsiMessage.error()` |
-| Space             | `dedsi-space`   | 用于按钮组间距 |
+---
 
-## 4. 最佳实践 (Best Practices)
+## 最佳实践
 
-1. **Table Columns 定义**:
-   - 时间字段使用 `customRender` + `dayjs` 格式化。
-   - 操作列使用 `template #action` 插槽。
+### 1. Table 列定义
 
-2. **数据加载 (Fetch Data)**:
-   - 统一封装 `fetchData` 方法。
-   - `try-catch` 包裹 API 请求。
-   - `finally` 中重置 `tableLoading.value = false`。
+- 优先使用 `slot` 方式定义列，便于自定义渲染
+- 时间字段使用 `dayjs` 格式化
+- 操作列使用 `template #actions` 插槽
 
-3. **表单处理**:
-   - 编辑时使用 `Object.assign(formState, detail)` 回填数据。
-   - 新增时需重置 `formState`。
-   - 提交时根据是否有 `id` 判断是 Create 还是 Update。
+### 2. 数据加载
 
-4. **删除操作**:
-   - 使用 `dedsi-popconfirm` 包裹删除按钮，防止误操作。
+- 统一封装 `fetchData` 方法
+- `try-catch` 包裹 API 请求
+- `finally` 中重置 `tableLoading.value = false`
 
-## 5. 代码模板 (Code Snippets)
+### 3. 表单处理
 
-### Service Template
-```typescript
-import { AxiosRequest } from '../../utils/axiosRequest'
-// import types...
+- 编辑时使用 `Object.assign(formState, detail)` 回填数据
+- 新增时需重置 `formState`
+- 提交时根据是否有 `id` 判断是 Create 还是 Update
+- 使用 `formRef` 进行表单验证
 
-export class MyApiService {
-    private request = new AxiosRequest(ServiceUrl)
+### 4. 表单验证
 
-    public pagedQuery(data: PagedInputDto) {
-        return this.request.post<PagedResultDto, PagedInputDto>('/api/Path/PagedQuery', data)
-    }
-}
-export const myApiService = new MyApiService()
-```
+- 使用 `:rules` 定义验证规则
+- 手动调用 `formRef.value?.validate()` 验证
+- 关闭弹窗时调用 `formRef.value?.clearValidate()` 清除验证
 
-### View Script Template
-```typescript
-<script setup lang="ts">
-import { reactive, ref, onMounted } from 'vue'
-import { myApiService } from '@/apiServices'
-import { DedsiMessage } from 'dedsi-vue-ui'
+### 5. 图标使用
 
-// State & Methods...
-const fetchData = async () => {
-    tableLoading.value = true
-    try {
-        const res = await myApiService.pagedQuery({ ...queryParam, pageIndex: pagination.current, pageSize: pagination.pageSize })
-        tableData.value = res.items
-        pagination.total = res.totalCount
-    } finally {
-        tableLoading.value = false
-    }
-}
-</script>
-```
+- 从 `@ant-design/icons-vue` 导入图标
+- 使用 `<template #icon>` 插槽添加图标到按钮
+
+### 6. 删除操作
+
+- 使用 `dedsi-popconfirm` 包裹删除按钮
+- 防止误操作
+
+### 7. 查看详情
+
+- 提供独立的查看详情弹窗
+- 对关键字段使用 `dedsi-typography:copyable` 支持复制
+
+---
+
+## 参考
+
+- [Dedsi Vue-UI](../dedsi-vue-ui/) - Dedsi UI 组件库文档
+- [Vue 3 Documentation](https://vuejs.org/) - Vue 3 官方文档
+- [TypeScript Documentation](https://www.typescriptlang.org/) - TypeScript 官方文档
