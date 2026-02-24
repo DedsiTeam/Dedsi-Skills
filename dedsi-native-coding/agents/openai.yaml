@@ -1,0 +1,4 @@
+interface:
+  display_name: "DedsiNative 开发指引"
+  short_description: "DedsiNative 项目开发规范、模板与排错指引"
+  default_prompt: "使用 $dedsi-native-coding 为 DedsiNative 添加新实体与全套 CRUD 操作。"
